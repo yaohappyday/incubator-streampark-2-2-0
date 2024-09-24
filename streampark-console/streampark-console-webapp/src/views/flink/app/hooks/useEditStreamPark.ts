@@ -44,11 +44,14 @@ export const useEditStreamParkSchema = (
     flinkClusters,
     getFlinkSqlSchema,
     getFlinkClusterSchemas,
-    getFlinkFormOtherSchemas,
+    getFlinkOtherSqlSchema,
     getFlinkTypeSchema,
+    getFirstModalFlinkOtherSchema,
     getExecutionModeSchema,
+    getProgramArgsSchema,
+    getFlinkFormConfigSchema,
     suggestions,
-  } = useCreateAndEditSchema(dependencyRef, {
+  } = useCreateAndEditSchema(dependencyRef, false, {
     appId: appId,
     mode: 'streampark',
   });
@@ -114,11 +117,45 @@ export const useEditStreamParkSchema = (
       modified: obj2.version,
     });
   }
+  /** edit main */
   const getEditStreamParkFormSchema = computed((): FormSchema[] => {
+    return [
+      ...getFlinkSqlSchema.value,
+      {
+        field: 'projectName',
+        label: 'Project',
+        component: 'Input',
+        render: ({ model }) => h(Alert, { message: model.projectName, type: 'info' }),
+        ifShow: ({ model, values }) => values.jobType != JobTypeEnum.SQL && model.projectName,
+      },
+      { field: 'project', label: 'ProjectId', component: 'Input', show: false },
+      {
+        field: 'module',
+        label: 'Application',
+        component: 'Input',
+        render: ({ model }) => h(Alert, { message: model.module, type: 'info' }),
+        ifShow: ({ model, values }) => values.jobType != JobTypeEnum.SQL && model.module,
+      },
+      { field: 'configId', label: 'configId', component: 'Input', show: false },
+      { field: 'config', label: '', component: 'Input', show: false },
+      {
+        field: 'appConf',
+        label: 'Application conf',
+        component: 'Input',
+        slot: 'appConf',
+        ifShow: ({ values }) => values.jobType != JobTypeEnum.SQL,
+      },
+      ...getProgramArgsSchema.value
+      // ...getFlinkFormOtherSchemas.value,
+    ];
+  });
+  /** edit attribute */
+  const getEditAttrStreamParkFormSchema = computed((): FormSchema[] => {
     return [
       ...getFlinkTypeSchema.value,
       ...getExecutionModeSchema.value,
       ...getFlinkClusterSchemas.value,
+      ...getFirstModalFlinkOtherSchema.value,
       {
         field: 'flinkSqlHistory',
         label: t('flink.app.historyVersion'),
@@ -133,33 +170,7 @@ export const useEditStreamParkSchema = (
         },
         required: true,
       },
-      ...getFlinkSqlSchema.value,
-      {
-        field: 'projectName',
-        label: 'Project',
-        component: 'Input',
-        render: ({ model }) => h(Alert, { message: model.projectName, type: 'info' }),
-        ifShow: ({ model, values }) => values.jobType != JobTypeEnum.SQL && model.projectName,
-      },
-      { field: 'project', label: 'ProjectId', component: 'Input', show: false },
-
-      {
-        field: 'module',
-        label: 'Application',
-        component: 'Input',
-        render: ({ model }) => h(Alert, { message: model.module, type: 'info' }),
-        ifShow: ({ model, values }) => values.jobType != JobTypeEnum.SQL && model.module,
-      },
-      { field: 'configId', label: 'configId', component: 'Input', show: false },
-      { field: 'config', label: '', component: 'Input', show: false },
       { field: 'strategy', label: '', component: 'Input', show: false },
-      {
-        field: 'appConf',
-        label: 'Application conf',
-        component: 'Input',
-        slot: 'appConf',
-        ifShow: ({ values }) => values.jobType != JobTypeEnum.SQL,
-      },
       {
         field: 'compareConf',
         label: 'Compare conf',
@@ -182,14 +193,22 @@ export const useEditStreamParkSchema = (
         defaultValue: false,
         ifShow: ({ values }) => values.executionMode == ExecModeEnum.KUBERNETES_APPLICATION,
       },
-      ...getFlinkFormOtherSchemas.value,
-    ];
-  });
+      ...getFlinkOtherSqlSchema.value
+    ]
+  })
+  /** edit config */
+  const getEditConfigStreamParkFormSchema = computed((): FormSchema[] => {
+    return [
+      ...getFlinkFormConfigSchema.value
+    ]
+  })
   return {
     alerts,
     flinkEnvs,
     flinkClusters,
     getEditStreamParkFormSchema,
+    getEditAttrStreamParkFormSchema,
+    getEditConfigStreamParkFormSchema,
     flinkSql,
     registerDifferentDrawer,
     suggestions,

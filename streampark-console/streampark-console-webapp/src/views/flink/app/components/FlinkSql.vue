@@ -188,7 +188,7 @@
 </script>
 
 <template>
-  <div style="height: 550px" class="w-full" :class="fullContentClass">
+  <div style="height: calc(100vh - 135px)" class="w-full" :class="fullContentClass">
     <div
       class="full-content-tool flex justify-between px-20px pb-10px mb-10px"
       v-if="fullScreenStatus"
@@ -202,8 +202,7 @@
       </Tooltip>
     </div>
 
-    <div ref="flinkSql" class="overflow-hidden w-full mt-5px" :class="flinkEditorClass"></div>
-    <ButtonGroup class="flinksql-tool" v-if="!fullScreenStatus">
+    <ButtonGroup class="flinksql-tool noFullScreenStatusStyle" v-if="!fullScreenStatus">
       <a-button size="small" class="flinksql-tool-item" type="primary" @click="handleVerifySql">
         <Icon icon="ant-design:check-outlined" />
         {{ t('flink.app.flinkSql.verify') }}
@@ -263,6 +262,7 @@
         </a-button>
       </div>
     </div>
+    <div ref="flinkSql" class="overflow-hidden w-full mt-5px" :class="flinkEditorClass"></div>
   </div>
   <p class="conf-desc mt-10px" v-if="!fullScreenStatus">
     <span class="text-red-600" v-if="verifyRes.errorMsg"> {{ verifyRes.errorMsg }} </span>

@@ -57,6 +57,7 @@ export const renderInputDropdown = (
   formModel: Recordable,
   field: string,
   componentProps: { placeholder: string; options: Array<string> },
+  isDisabled?: boolean
 ) => {
   return (
     <Input
@@ -65,6 +66,7 @@ export const renderInputDropdown = (
       allowClear
       value={formModel[field]}
       onInput={(e) => (formModel[field] = e.target.value)}
+      disabled={isDisabled}
     >
       {{
         addonAfter: () => (
@@ -268,13 +270,14 @@ export const renderYarnQueue = ({ model, field }: RenderCallbackParams) => {
   );
 };
 
-export const renderFlinkCluster = (clusters, { model, field }: RenderCallbackParams) => {
+export const renderFlinkCluster = (clusters, { model, field }: RenderCallbackParams, isDisabled?: boolean) => {
   return (
     <Select
       placeholder={t('flink.app.flinkCluster')}
       value={model[field]}
       onChange={(value: any) => (model[field] = value)}
       codeField={field}
+      disabled={isDisabled ?? false}
     >
       {clusters.map((item) => {
         return (

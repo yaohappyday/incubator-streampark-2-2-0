@@ -32,16 +32,18 @@ export const useEditFlinkSchema = (jars: Ref) => {
     flinkEnvs,
     flinkClusters,
     getFlinkClusterSchemas,
-    getFlinkFormOtherSchemas,
+    getFirstModalFlinkOtherSchema,
     getFlinkTypeSchema,
     getExecutionModeSchema,
+    getProgramArgsSchema,
+    getFlinkOtherSqlSchema,
+    getFlinkFormConfigSchema,
     suggestions,
-  } = useCreateAndEditSchema(null, { appId: route.query.appId as string, mode: 'streampark' });
+  } = useCreateAndEditSchema(null, false, { appId: route.query.appId as string, mode: 'streampark' });
 
+  /** main */
   const getEditFlinkFormSchema = computed((): FormSchema[] => {
     return [
-      ...getFlinkTypeSchema.value,
-      ...getExecutionModeSchema.value,
       {
         field: 'resourceFrom',
         label: 'Resource From',
@@ -54,7 +56,6 @@ export const useEditFlinkSchema = (jars: Ref) => {
           else return '';
         },
       },
-      ...getFlinkClusterSchemas.value,
       {
         field: 'projectName',
         label: 'Project',
@@ -115,11 +116,32 @@ export const useEditFlinkSchema = (jars: Ref) => {
         },
         rules: [{ required: true, message: 'Program Main is required' }],
       },
-      ...getFlinkFormOtherSchemas.value,
+      ...getProgramArgsSchema.value
+      // ...getFlinkFormOtherSchemas.value,
     ];
   });
+
+  /** attribute */
+  const getEditAttrStreamParkFormSchema = computed((): FormSchema[] => {
+    return [
+      ...getFlinkTypeSchema.value,
+      ...getExecutionModeSchema.value,
+      ...getFlinkClusterSchemas.value,
+      ...getFirstModalFlinkOtherSchema.value,
+      ...getFlinkOtherSqlSchema.value
+    ]
+  })
+  
+  /** config */
+  const getEditConfigStreamParkFormSchema = computed((): FormSchema[] => {
+    return [
+      ...getFlinkFormConfigSchema.value
+    ]
+  })
   return {
     getEditFlinkFormSchema,
+    getEditAttrStreamParkFormSchema,
+    getEditConfigStreamParkFormSchema,
     flinkEnvs,
     flinkClusters,
     flinkSql,

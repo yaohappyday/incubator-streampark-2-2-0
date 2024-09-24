@@ -22,16 +22,17 @@
 <script setup lang="ts" name="AppCreate">
   import { useGo } from '/@/hooks/web/usePage';
   import ProgramArgs from './components/ProgramArgs.vue';
-  import { Switch } from 'ant-design-vue';
-  import { onMounted, reactive, ref, unref } from 'vue';
+  // import { Switch } from 'ant-design-vue';
+  import { onMounted, onBeforeUnmount, reactive, ref, unref } from 'vue';
   import { PageWrapper } from '/@/components/Page';
   import { createAsyncComponent } from '/@/utils/factory/createAsyncComponent';
+  import { useFlinkAppStore } from '/@/store/modules/flinkApplication';
 
   import { BasicForm, useForm } from '/@/components/Form';
-  import { SettingTwoTone } from '@ant-design/icons-vue';
+  // import { SettingTwoTone } from '@ant-design/icons-vue';
   import { useDrawer } from '/@/components/Drawer';
-  import Mergely from './components/Mergely.vue';
-  import { handleConfTemplate } from '/@/api/flink/config';
+  // import Mergely from './components/Mergely.vue';
+  // import { handleConfTemplate } from '/@/api/flink/config';
   import { fetchAppConf, fetchCreate } from '/@/api/flink/app';
   import options from './data/option';
   import { useCreateSchema } from './hooks/useCreateSchema';
@@ -41,10 +42,13 @@
   import { buildUUID } from '/@/utils/uuid';
   import { useI18n } from '/@/hooks/web/useI18n';
   import VariableReview from './components/VariableReview.vue';
-  import PomTemplateTab from './components/PodTemplate/PomTemplateTab.vue';
-  import UseSysHadoopConf from './components/UseSysHadoopConf.vue';
-  import { CreateParams } from '/@/api/flink/app.type';
+  // import PomTemplateTab from './components/PodTemplate/PomTemplateTab.vue';
+  // import UseSysHadoopConf from './components/UseSysHadoopConf.vue';
+  import { AppListRecord, CreateParams } from '/@/api/flink/app.type';
   import { decodeByBase64, encryptByBase64 } from '/@/utils/cipher';
+  import SidebarMenu from './components/SidebarMenu.vue';
+  import AddAttrDrawer from './components/AddAttrDrawer.vue';
+  import AddConfigDrawer from './components/AddConfigDrawer.vue';
   import {
     AppTypeEnum,
     ClusterStateEnum,
@@ -56,14 +60,16 @@
   const FlinkSqlEditor = createAsyncComponent(() => import('./components/FlinkSql.vue'), {
     loading: true,
   });
-  const Dependency = createAsyncComponent(() => import('./components/Dependency.vue'), {
-    loading: true,
-  });
+  // const Dependency = createAsyncComponent(() => import('./components/Dependency.vue'), {
+  //   loading: true,
+  // });
 
   const go = useGo();
   const flinkSql = ref();
   const dependencyRef = ref();
   const submitLoading = ref(false);
+  const flinkAppStore = useFlinkAppStore();
+  // const isShow = ref(false)
 
   const { t } = useI18n();
   const { createMessage } = useMessage();
@@ -73,16 +79,29 @@
     optionsKeyMapping.set(item.key, item);
   });
 
+  const app = reactive<Partial<AppListRecord>>({});
+  const attributeForm = ref<InstanceType<typeof AddAttrDrawer> | null>(null)
+  const isAttrfailMsgActive = ref(false)
+
   const k8sTemplate = reactive({
     podTemplate: '',
     jmPodTemplate: '',
     tmPodTemplate: '',
   });
 
-  const { flinkEnvs, flinkClusters, getCreateFormSchema, suggestions } =
-    useCreateSchema(dependencyRef);
+  const attrVisible = ref(false);
+  const configVisible = ref(false);
 
-  const [registerAppForm, { setFieldsValue, getFieldsValue, submit }] = useForm({
+  const {
+    flinkEnvs,
+    flinkClusters,
+    getMainOtherCreateFormSchema,
+    getAttrCreateFormSchema,
+    getConfigCreateFormSchema,
+    suggestions,
+  } = useCreateSchema(dependencyRef, true);
+
+  const [registerAppForm, { setFieldsValue, submit }] = useForm({
     labelCol: { lg: { span: 5, offset: 0 }, sm: { span: 7, offset: 0 } },
     wrapperCol: { lg: { span: 16, offset: 0 }, sm: { span: 17, offset: 0 } },
     baseColProps: { span: 24 },
@@ -90,11 +109,14 @@
     showActionButtonGroup: false,
   });
 
-  const [registerConfDrawer, { openDrawer: openConfDrawer }] = useDrawer();
+  // const [registerConfDrawer, { openDrawer: openConfDrawer }] = useDrawer();
   const [registerReviewDrawer, { openDrawer: openReviewDrawer }] = useDrawer();
+  const [registerAttrDrawer, { openDrawer: openAttrDrawer, closeDrawer: closeAttrDrawer }] = useDrawer();
+  const [registerConfigureDrawer, { openDrawer: openConfigureDrawer, closeDrawer: closeConfigureDrawer }] = useDrawer();
 
   /* Initialize the form */
   async function handleInitForm() {
+    Object.assign(app, flinkAppStore.getFlinkFormValue);
     const defaultValue = {
       resolveOrder: 0,
       k8sRestExposedType: 0,
@@ -102,37 +124,8 @@
     options.forEach((item) => {
       defaultValue[item.key] = item.defaultValue;
     });
-    const v = flinkEnvs.value.filter((v) => v.isDefault)[0];
-    if (v) {
-      Object.assign(defaultValue, { versionId: v.id });
-    }
-    await setFieldsValue(defaultValue);
-  }
-
-  /* Open the sqlConf drawer */
-  async function handleSQLConf(checked: boolean, model: Recordable) {
-    if (checked) {
-      if (model.configOverride) {
-        openConfDrawer(true, {
-          configOverride: model.configOverride,
-        });
-      } else {
-        const res = await handleConfTemplate();
-        openConfDrawer(true, {
-          configOverride: decodeByBase64(res),
-        });
-      }
-    } else {
-      openConfDrawer(false);
-      setFieldsValue({ isSetConfig: false, configOverride: null });
-    }
-  }
-
-  function handleEditConfClose() {
-    const formValue = getFieldsValue();
-    if (!formValue.configOverride) {
-      setFieldsValue({ isSetConfig: false });
-    }
+    Object.assign(defaultValue, { versionId: app.versionId });
+    await setFieldsValue({ ...app, ...defaultValue });
   }
 
   function handleCluster(values: Recordable) {
@@ -204,6 +197,7 @@
           params['jar'] = values.jar || null;
           params['mainClass'] = values.mainClass || null;
         }
+        console.log("submitParmas", params)
         handleCreateApp(params);
       } else {
         // from upload
@@ -242,7 +236,7 @@
     } else {
       config = null;
     }
-
+    console.log("dependency", dependency)
     handleCluster(values);
     const params = {
       jobType: JobTypeEnum.SQL,
@@ -251,10 +245,7 @@
       config,
       format: values.isSetConfig ? 1 : null,
       teamResource: JSON.stringify(values.teamResource),
-      dependency:
-        dependency.pom === undefined && dependency.jar === undefined
-          ? null
-          : JSON.stringify(dependency),
+      dependency: values.dependency
     };
     handleSubmitParams(params, values, k8sTemplate);
     handleCreateApp(params);
@@ -262,7 +253,12 @@
   /* Submit to create */
   async function handleAppCreate(formValue: Recordable) {
     try {
+      Object.assign(app, flinkAppStore.getFlinkFormValue)
+      formValue = {...app, formValue} 
       submitLoading.value = true;
+      k8sTemplate.podTemplate = formValue.k8sTemplate?.podTemplate ?? ''
+      k8sTemplate.jmPodTemplate = formValue.k8sTemplate?.jmPodTemplate ?? ''
+      k8sTemplate.tmPodTemplate = formValue.k8sTemplate?.tmPodTemplate ?? ''
       if (formValue.jobType == JobTypeEnum.SQL) {
         if (formValue.flinkSql == null || formValue.flinkSql.trim() === '') {
           createMessage.warning(t('flink.app.editStreamPark.flinkSqlRequired'));
@@ -302,77 +298,104 @@
     }
   }
 
+  /** slideMenu */
+  async function handleEdit(type: string) {
+    if(attrVisible.value) {
+      await attributeForm.value?.handleSubmit()
+      if (isAttrfailMsgActive.value) return
+    }
+    Object.assign(app, flinkAppStore.getFlinkFormValue)
+    if (type === 'attr') {
+      configVisible.value = false
+      attrVisible.value = true
+      closeConfigureDrawer()
+      openAttrDrawer(true, app)
+    } else {
+      attrVisible.value = false
+      configVisible.value = true
+      closeAttrDrawer()
+      openConfigureDrawer(true, app);
+    }
+  }
+
+  function addSlideSubmitResult(params) {
+    const { type, value} = params
+    isAttrfailMsgActive.value = false
+    if (type === 'fail' && value === 'attr') {
+      isAttrfailMsgActive.value = true
+    }
+  }
+
   onMounted(async () => {
     handleInitForm();
+  });
+  onBeforeUnmount(() => {
+    flinkAppStore.clearFlinkFormValue();
   });
 </script>
 
 <template>
-  <PageWrapper contentFullHeight contentBackground contentClass="p-26px app_controller">
-    <BasicForm @register="registerAppForm" @submit="handleAppCreate" :schemas="getCreateFormSchema">
-      <template #flinkSql="{ model, field }">
-        <FlinkSqlEditor
-          ref="flinkSql"
-          v-model:value="model[field]"
-          :versionId="model['versionId']"
-          :suggestions="suggestions"
-          @preview="(value) => openReviewDrawer(true, { value, suggestions })"
-        />
-      </template>
-      <template #dependency="{ model, field }">
-        <Dependency
-          ref="dependencyRef"
-          v-model:value="model[field]"
-          :form-model="model"
-          :flink-envs="flinkEnvs"
-        />
-      </template>
-      <template #isSetConfig="{ model, field }">
-        <Switch checked-children="ON" un-checked-children="OFF" v-model:checked="model[field]" />
-        <SettingTwoTone
-          v-if="model[field]"
-          class="ml-10px"
-          two-tone-color="#4a9ff5"
-          @click="handleSQLConf(true, model)"
-        />
-      </template>
-      <template #podTemplate>
-        <PomTemplateTab
-          v-model:podTemplate="k8sTemplate.podTemplate"
-          v-model:jmPodTemplate="k8sTemplate.jmPodTemplate"
-          v-model:tmPodTemplate="k8sTemplate.tmPodTemplate"
-        />
-      </template>
-      <template #args="{ model }">
-        <template v-if="model.args !== undefined">
-          <ProgramArgs
-            v-model:value="model.args"
+  <div>
+    <PageWrapper
+      contentFullHeight
+      contentBackground
+      contentClass="p-26px app_controller app-content-margin-right"
+    >
+      <BasicForm
+        @register="registerAppForm"
+        @submit="handleAppCreate"
+        :schemas="getMainOtherCreateFormSchema"
+        :model="app"
+      >
+        <template #flinkSql="{ model, field }">
+          <FlinkSqlEditor
+            ref="flinkSql"
+            v-model:value="model[field]"
+            :versionId="model['versionId']"
             :suggestions="suggestions"
             @preview="(value) => openReviewDrawer(true, { value, suggestions })"
           />
         </template>
-      </template>
-      <template #useSysHadoopConf="{ model, field }">
-        <UseSysHadoopConf v-model:hadoopConf="model[field]" />
-      </template>
-      <template #formFooter>
-        <div class="flex items-center w-full justify-center">
-          <a-button @click="go('/flink/app')">
-            {{ t('common.cancelText') }}
-          </a-button>
-          <a-button class="ml-4" :loading="submitLoading" type="primary" @click="submit()">
-            {{ t('common.submitText') }}
-          </a-button>
-        </div>
-      </template>
-    </BasicForm>
-    <Mergely
-      @ok="(data) => setFieldsValue(data)"
-      @close="handleEditConfClose"
-      @register="registerConfDrawer"
+        <template #args="{ model }">
+          <template v-if="model.args !== undefined">
+            <ProgramArgs
+              v-model:value="model.args"
+              :suggestions="suggestions"
+              @preview="(value) => openReviewDrawer(true, { value, suggestions })"
+            />
+          </template>
+        </template>
+        <template #formFooter>
+          <div class="flex items-center w-full justify-end">
+            <a-button @click="go('/flink/app')">
+              {{ t('common.cancelText') }}
+            </a-button>
+            <a-button class="ml-4" :loading="submitLoading" type="primary" @click="submit()">
+              {{ t('common.submitText') }}
+            </a-button>
+          </div>
+        </template>
+      </BasicForm>
+      <VariableReview @register="registerReviewDrawer" />
+      <SidebarMenu
+        :attrVisible="attrVisible"
+        :configVisible="configVisible"
+        @openDrawer="handleEdit"
+      />
+    </PageWrapper>
+    <AddAttrDrawer
+      ref="attributeForm"
+      :flinkEnvs="flinkEnvs"
+      :schema="getAttrCreateFormSchema"
+      @register="registerAttrDrawer"
+      @addSubmitResult="addSlideSubmitResult"
     />
-    <VariableReview @register="registerReviewDrawer" />
-  </PageWrapper>
+    <AddConfigDrawer
+      ref="configForm"
+      :schema="getConfigCreateFormSchema"
+      @register="registerConfigureDrawer"
+    />
+  </div>
 </template>
 <style lang="less">
   @import url('./styles/Add.less');

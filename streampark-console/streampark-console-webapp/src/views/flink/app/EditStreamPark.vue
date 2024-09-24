@@ -21,6 +21,7 @@
 </script>
 <script setup lang="ts" name="EditStreamPark">
   import { PageWrapper } from '/@/components/Page';
+  import { Spin } from 'ant-design-vue';
   import { BasicForm, useForm } from '/@/components/Form';
   import { onMounted, reactive, ref, nextTick, unref } from 'vue';
   import { AppListRecord } from '/@/api/flink/app.type';
@@ -50,6 +51,10 @@
   import ProgramArgs from './components/ProgramArgs.vue';
   import VariableReview from './components/VariableReview.vue';
   import { ExecModeEnum, JobTypeEnum, UseStrategyEnum } from '/@/enums/flinkEnum';
+  import { useFlinkAppStore } from '/@/store/modules/flinkApplication';
+  import SidebarMenu from './components/SidebarMenu.vue';
+  import AddAttrDrawer from './components/AddAttrDrawer.vue';
+  import AddConfigDrawer from './components/AddConfigDrawer.vue';
 
   const route = useRoute();
   const go = useGo();
@@ -58,6 +63,7 @@
   const app = reactive<Partial<AppListRecord>>({});
   const flinkSqlHistory = ref<any[]>([]);
   const submitLoading = ref<boolean>(false);
+  const initLoading = ref<boolean>(true);
 
   const configVersions = ref<Array<{ id: string }>>([]);
 
@@ -66,6 +72,12 @@
   const dependencyRef = ref();
   const programArgRef = ref();
   const podTemplateRef = ref();
+
+  const attrVisible = ref(false);
+  const configVisible = ref(false);
+  const attributeForm = ref<InstanceType<typeof AddAttrDrawer> | null>(null)
+  const isAttrfailMsgActive = ref(false)
+  const flinkAppStore = useFlinkAppStore();
 
   const k8sTemplate = reactive({
     podTemplate: '',
@@ -79,6 +91,8 @@
     flinkEnvs,
     flinkSql,
     getEditStreamParkFormSchema,
+    getEditAttrStreamParkFormSchema,
+    getEditConfigStreamParkFormSchema,
     registerDifferentDrawer,
     suggestions,
   } = useEditStreamParkSchema(configVersions, flinkSqlHistory, dependencyRef);
@@ -94,6 +108,8 @@
 
   const [registerConfDrawer, { openDrawer: openConfDrawer }] = useDrawer();
   const [registerReviewDrawer, { openDrawer: openReviewDrawer }] = useDrawer();
+  const [registerAttrDrawer, { openDrawer: openAttrDrawer, closeDrawer: closeAttrDrawer }] = useDrawer();
+  const [registerConfigureDrawer, { openDrawer: openConfigureDrawer, closeDrawer: closeConfigureDrawer }] = useDrawer();
 
   /* Form reset */
   function handleReset(executionMode?: string) {
@@ -123,6 +139,11 @@
         },
         flinkImage: app.flinkImage,
         k8sNamespace: app.k8sNamespace,
+        k8sTemplate: {
+          podTemplate: app.k8sPodTemplate || '',
+          jmPodTemplate: app.k8sJmPodTemplate || '',
+          tmPodTemplate: app.k8sTmPodTemplate || '',
+        },
         ...resetParams,
       };
       switch (app.executionMode) {
@@ -142,6 +163,7 @@
         Object.assign(defaultParams, { executionMode: app.executionMode });
       }
       setFieldsValue(defaultParams);
+      flinkAppStore.setFlinkFormValue(defaultParams)
       app.args && programArgRef.value?.setContent(app.args);
     });
   }
@@ -163,7 +185,12 @@
   /* Handling update parameters */
   async function handleAppUpdate(values) {
     try {
+      Object.assign(app, flinkAppStore.getFlinkFormValue)
+      values = {...app, values}
       submitLoading.value = true;
+      k8sTemplate.podTemplate = values.k8sTemplate?.podTemplate ?? ''
+      k8sTemplate.jmPodTemplate = values.k8sTemplate?.jmPodTemplate ?? ''
+      k8sTemplate.tmPodTemplate = values.k8sTemplate?.tmPodTemplate ?? ''
       if (app.jobType == JobTypeEnum.SQL) {
         if (values.flinkSql == null || values.flinkSql.trim() === '') {
           createMessage.warning(t('flink.app.editStreamPark.flinkSqlRequired'));
@@ -272,6 +299,7 @@
   async function handleStreamParkInfo() {
     const appId = route.query.appId;
     const res = await fetchGet({ id: appId as string });
+    initLoading.value = false
     let configId = '';
     const confVersion = await fetchConfHistory({ id: route.query.appId });
     confVersion.forEach((conf: Recordable) => {
@@ -300,7 +328,6 @@
         [item.key]: item.defaultValue,
       });
     });
-
     setFieldsValue({
       jobType: res.jobType,
       appType: res.appType,
@@ -318,13 +345,6 @@
     });
     nextTick(() => {
       unref(flinkSql)?.setContent(decodeByBase64(res.flinkSql));
-
-      setTimeout(() => {
-        unref(dependencyRef)?.setDefaultValue(JSON.parse(res.dependency || '{}'));
-        unref(podTemplateRef)?.handleChoicePodTemplate('ptVisual', res.k8sPodTemplate);
-        unref(podTemplateRef)?.handleChoicePodTemplate('jmPtVisual', res.k8sJmPodTemplate);
-        unref(podTemplateRef)?.handleChoicePodTemplate('tmPtVisual', res.k8sTmPodTemplate);
-      }, 1000);
     });
     handleReset();
   }
@@ -341,6 +361,35 @@
       setFieldsValue({ isSetConfig: false });
     }
   }
+
+    /** slideMenu */
+    async function handleEdit(type: string) {
+    if(attrVisible.value) {
+      await attributeForm.value?.handleSubmit()
+      if (isAttrfailMsgActive.value) return
+    }
+    Object.assign(app, flinkAppStore.getFlinkFormValue)
+    if (type === 'attr') {
+      configVisible.value = false
+      attrVisible.value = true
+      closeConfigureDrawer()
+      openAttrDrawer(true, app)
+    } else {
+      attrVisible.value = false
+      configVisible.value = true
+      closeAttrDrawer()
+      openConfigureDrawer(true, app);
+    }
+  }
+
+  function addSlideSubmitResult(params) {
+    const { type, value} = params
+    isAttrfailMsgActive.value = false
+    if (type === 'fail' && value === 'attr') {
+      isAttrfailMsgActive.value = true
+    }
+  }
+
   onMounted(() => {
     if (!route?.query?.appId) {
       go('/flink/app');
@@ -351,78 +400,101 @@
   });
 </script>
 <template>
-  <PageWrapper contentBackground content-class="p-26px app_controller">
-    <BasicForm
-      @register="registerForm"
-      @submit="handleAppUpdate"
-      :schemas="getEditStreamParkFormSchema"
-    >
-      <template #podTemplate>
-        <PomTemplateTab
-          ref="podTemplateRef"
-          v-model:podTemplate="k8sTemplate.podTemplate"
-          v-model:jmPodTemplate="k8sTemplate.jmPodTemplate"
-          v-model:tmPodTemplate="k8sTemplate.tmPodTemplate"
-        />
-      </template>
-      <template #args="{ model }">
-        <ProgramArgs
-          ref="programArgRef"
-          v-if="model.args != null && model.args != undefined"
-          v-model:value="model.args"
-          :suggestions="suggestions"
-          @preview="(value) => openReviewDrawer(true, { value, suggestions })"
-        />
-      </template>
-      <template #uploadJobJar>
-        <UploadJobJar :custom-request="handleCustomJobRequest" v-model:loading="uploadLoading" />
-      </template>
-      <template #flinkSql="{ model, field }">
-        <FlinkSqlEditor
-          ref="flinkSql"
-          v-model:value="model[field]"
-          :versionId="model['versionId']"
-          :suggestions="suggestions"
-          @preview="(value) => openReviewDrawer(true, { value, suggestions })"
-        />
-      </template>
-      <template #dependency="{ model, field }">
-        <Dependency
-          ref="dependencyRef"
-          v-model:value="model[field]"
-          :form-model="model"
-          :flink-envs="flinkEnvs"
-        />
-      </template>
-      <template #appConf="{ model }">
-        <AppConf :model="model" :configVersions="configVersions" @open-mergely="handleMergely" />
-      </template>
-      <template #compareConf="{ model }">
-        <CompareConf v-model:value="model.compareConf" :configVersions="configVersions" />
-      </template>
-      <template #useSysHadoopConf="{ model, field }">
-        <UseSysHadoopConf v-model:hadoopConf="model[field]" />
-      </template>
+  <div>
+    <Spin v-if="initLoading" />
+    <div v-if="!initLoading">
+      <PageWrapper contentBackground content-class="p-26px app_controller app-content-margin-right">
+        <BasicForm
+          @register="registerForm"
+          @submit="handleAppUpdate"
+          :schemas="getEditStreamParkFormSchema"
+          :model="app"
+        >
+          <template #podTemplate>
+            <PomTemplateTab
+              ref="podTemplateRef"
+              v-model:podTemplate="k8sTemplate.podTemplate"
+              v-model:jmPodTemplate="k8sTemplate.jmPodTemplate"
+              v-model:tmPodTemplate="k8sTemplate.tmPodTemplate"
+            />
+          </template>
+          <template #args="{ model }">
+            <ProgramArgs
+              ref="programArgRef"
+              v-if="model.args != null && model.args != undefined"
+              v-model:value="model.args"
+              :suggestions="suggestions"
+              @preview="(value) => openReviewDrawer(true, { value, suggestions })"
+            />
+          </template>
+          <template #uploadJobJar>
+            <UploadJobJar :custom-request="handleCustomJobRequest" v-model:loading="uploadLoading" />
+          </template>
+          <template #flinkSql="{ model, field }">
+            <FlinkSqlEditor
+              ref="flinkSql"
+              v-model:value="model[field]"
+              :versionId="model['versionId']"
+              :suggestions="suggestions"
+              @preview="(value) => openReviewDrawer(true, { value, suggestions })"
+            />
+          </template>
+          <template #dependency="{ model, field }">
+            <Dependency
+              ref="dependencyRef"
+              v-model:value="model[field]"
+              :form-model="model"
+              :flink-envs="flinkEnvs"
+            />
+          </template>
+          <template #appConf="{ model }">
+            <AppConf :model="model" :configVersions="configVersions" @open-mergely="handleMergely" />
+          </template>
+          <template #compareConf="{ model }">
+            <CompareConf v-model:value="model.compareConf" :configVersions="configVersions" />
+          </template>
+          <!-- <template #useSysHadoopConf="{ model, field }">
+            <UseSysHadoopConf v-model:hadoopConf="model[field]" />
+          </template> -->
 
-      <template #formFooter>
-        <div class="flex items-center w-full justify-center">
-          <a-button @click="go('/flink/app')">
-            {{ t('common.cancelText') }}
-          </a-button>
-          <a-button class="ml-4" :loading="submitLoading" type="primary" @click="submit()">
-            {{ t('common.submitText') }}
-          </a-button>
-        </div>
-      </template>
-    </BasicForm>
-    <Mergely
-      @ok="(data) => setFieldsValue(data)"
-      @close="handleEditConfClose"
-      @register="registerConfDrawer"
-    />
-    <Different @register="registerDifferentDrawer" />
-    <VariableReview @register="registerReviewDrawer" />
-  </PageWrapper>
+          <template #formFooter>
+            <div class="flex items-center w-full justify-end">
+              <a-button @click="go('/flink/app')">
+                {{ t('common.cancelText') }}
+              </a-button>
+              <a-button class="ml-4" :loading="submitLoading" type="primary" @click="submit()">
+                {{ t('common.submitText') }}
+              </a-button>
+            </div>
+          </template>
+        </BasicForm>
+        <Mergely
+          @ok="(data) => setFieldsValue(data)"
+          @close="handleEditConfClose"
+          @register="registerConfDrawer"
+        />
+        <Different @register="registerDifferentDrawer" />
+        <VariableReview @register="registerReviewDrawer" />
+        <SidebarMenu
+          :attrVisible="attrVisible"
+          :configVisible="configVisible"
+          @openDrawer="handleEdit"
+        />
+      </PageWrapper>
+      <AddAttrDrawer
+        ref="attributeForm"
+        :flinkEnvs="flinkEnvs"
+        :schema="getEditAttrStreamParkFormSchema"
+        @register="registerAttrDrawer"
+        @addSubmitResult="addSlideSubmitResult"
+      />
+      <AddConfigDrawer
+        ref="configForm"
+        :schema="getEditConfigStreamParkFormSchema"
+        @register="registerConfigureDrawer"
+      />
+    </div>
+  </div>
 </template>
 <style lang="less">
   @import url('./styles/Add.less');

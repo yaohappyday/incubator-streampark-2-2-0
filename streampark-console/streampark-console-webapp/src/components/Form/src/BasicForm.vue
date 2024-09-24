@@ -8,6 +8,7 @@
   >
     <Row v-bind="getRow">
       <slot name="formHeader"></slot>
+      <slot name="formFooter"></slot>
       <template v-for="schema in getSchema" :key="schema.field">
         <FormItem
           :tableAction="tableAction"
@@ -32,7 +33,6 @@
           <slot :name="item" v-bind="data || {}"></slot>
         </template>
       </FormAction>
-      <slot name="formFooter"></slot>
     </Row>
   </AForm>
 </template>
@@ -70,7 +70,7 @@
     props: basicProps,
     emits: ['advanced-change', 'reset', 'submit', 'register', 'field-value-change'],
     setup(props, { emit, attrs }) {
-      const formModel = reactive<Recordable>({});
+      const formModel = reactive<Recordable>(props.model || {});
       const modalFn = useModalContext();
 
       const advanceState = reactive<AdvanceState>({
@@ -340,6 +340,15 @@
           line-height: 1;
           align-items: center;
         }
+      }
+    }
+
+    .sql-item {
+      .ant-form-item-label {
+        display: none;
+      }
+      .ant-form-item-control {
+        max-width: 100%;
       }
     }
 

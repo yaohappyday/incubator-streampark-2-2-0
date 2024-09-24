@@ -348,7 +348,10 @@
             <Form.Item
               name={field}
               colon={colon}
-              class={{ 'suffix-item': showSuffix }}
+              class={{
+                'suffix-item': showSuffix,
+                'sql-item': getValues.value.field === 'flinkSql' ? true : false,
+              }}
               {...(itemProps as Recordable)}
               label={renderLabelHelpMessage()}
               rules={handleRules()}

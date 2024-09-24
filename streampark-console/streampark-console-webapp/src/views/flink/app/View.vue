@@ -41,6 +41,7 @@
   import LogModal from './components/AppView/LogModal.vue';
   import BuildDrawer from './components/AppView/BuildDrawer.vue';
   import AppDashboard from './components/AppView/AppDashboard.vue';
+  import AddAppModal from './AddAppModal.vue';
   import State, {
     buildStatusMap,
     optionStateMap,
@@ -67,6 +68,7 @@
   const [registerStartModal, { openModal: openStartModal }] = useModal();
   const [registerStopModal, { openModal: openStopModal }] = useModal();
   const [registerLogModal, { openModal: openLogModal }] = useModal();
+  const [registerAddModal, { openModal: openAddAppModal }] = useModal();
   const [registerBuildDrawer, { openDrawer: openBuildDrawer }] = useDrawer();
   const titleLenRef = ref({
     maxState: '',
@@ -191,6 +193,7 @@
     openLogModal,
     openBuildDrawer,
     handlePageDataReload,
+    openAddAppModal,
     optionApps,
   );
 
@@ -348,6 +351,7 @@
     <StopApplicationModal @register="registerStopModal" @update-option="handleOptionApp" />
     <LogModal @register="registerLogModal" />
     <BuildDrawer @register="registerBuildDrawer" />
+    <AddAppModal @register="registerAddModal" width="850px" />
   </PageWrapper>
 </template>
 <style lang="less">

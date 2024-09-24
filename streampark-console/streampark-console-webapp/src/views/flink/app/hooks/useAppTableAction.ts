@@ -43,6 +43,7 @@ export const useAppTableAction = (
   openLogModal: Fn,
   openBuildDrawer: Fn,
   handlePageDataReload: Fn,
+  openAddAppModal: Fn,
   optionApps: Recordable,
 ) => {
   const { t } = useI18n();
@@ -269,7 +270,8 @@ export const useAppTableAction = (
       showSubmitButton: false,
       showResetButton: false,
       async resetFunc() {
-        router.push({ path: '/flink/app/add' });
+        // router.push({ path: '/flink/app/add' });
+        openAddAppModal(true, {});
       },
       schemas: [
         {

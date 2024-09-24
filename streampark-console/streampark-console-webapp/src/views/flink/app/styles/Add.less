@@ -102,6 +102,10 @@
   }
 }
 
+.app-content-margin-right {
+  margin-right: 45px !important;
+}
+
 .pod-template-tool,
 .flinksql-tool {
   z-index: 99;
@@ -109,6 +113,12 @@
   margin-right: 5px;
   cursor: pointer;
   margin-top: 5px;
+}
+
+.noFullScreenStatusStyle {
+  position: absolute;
+  right: 180px;
+  top: -28px;
 }
 
 .flinksql-tool-item {
@@ -297,4 +307,19 @@
 
 .full-content-tool {
   border-bottom: 1px solid @border-color-base;
+}
+
+.app-drawer-margin {
+  margin-right: 40px;
+  margin-top: 50px;
+}
+
+.app-drawer-footer-bottom {
+  bottom: 50px !important;
+
+  .ant-drawer-body {
+    .scrollbar__wrap {
+      padding-bottom: 66px !important;
+    }
+  }
 }

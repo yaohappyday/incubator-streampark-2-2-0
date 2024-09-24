@@ -21,6 +21,7 @@
 </script>
 <script setup lang="ts" name="EditFlink">
   import { PageWrapper } from '/@/components/Page';
+  import { Spin } from 'ant-design-vue';
   import { BasicForm, useForm } from '/@/components/Form';
   import { onMounted, reactive, ref, nextTick, unref } from 'vue';
   import { Alert } from 'ant-design-vue';
@@ -40,6 +41,10 @@
   import VariableReview from './components/VariableReview.vue';
   import { useDrawer } from '/@/components/Drawer';
   import { ExecModeEnum, ResourceFromEnum } from '/@/enums/flinkEnum';
+  import { useFlinkAppStore } from '/@/store/modules/flinkApplication';
+  import SidebarMenu from './components/SidebarMenu.vue';
+  import AddAttrDrawer from './components/AddAttrDrawer.vue';
+  import AddConfigDrawer from './components/AddConfigDrawer.vue';
 
   const route = useRoute();
   const { t } = useI18n();
@@ -47,12 +52,19 @@
   const go = useGo();
 
   const submitLoading = ref<boolean>(false);
+  const initLoading = ref<boolean>(true);
   const jars = ref<string[]>([]);
 
   const uploadLoading = ref(false);
   const uploadJar = ref('');
   const programArgRef = ref();
   const podTemplateRef = ref();
+
+  const attrVisible = ref(false);
+  const configVisible = ref(false);
+  const attributeForm = ref<InstanceType<typeof AddAttrDrawer> | null>(null)
+  const isAttrfailMsgActive = ref(false)
+  const flinkAppStore = useFlinkAppStore();
 
   const k8sTemplate = reactive({
     podTemplate: '',
@@ -61,8 +73,10 @@
   });
 
   const [registerReviewDrawer, { openDrawer: openReviewDrawer }] = useDrawer();
+  const [registerAttrDrawer, { openDrawer: openAttrDrawer, closeDrawer: closeAttrDrawer }] = useDrawer();
+  const [registerConfigureDrawer, { openDrawer: openConfigureDrawer, closeDrawer: closeConfigureDrawer }] = useDrawer();
 
-  const { getEditFlinkFormSchema, alerts, suggestions } = useEditFlinkSchema(jars);
+  const { getEditFlinkFormSchema, getEditAttrStreamParkFormSchema, getEditConfigStreamParkFormSchema, flinkEnvs, alerts, suggestions } = useEditFlinkSchema(jars);
   const { handleGetApplication, app, handleResetApplication } = useEdit();
   const [registerForm, { setFieldsValue, submit }] = useForm({
     labelWidth: 120,
@@ -106,6 +120,11 @@
         alertId: selectAlertId,
         projectName: app.projectName,
         module: app.module,
+        k8sTemplate: {
+          podTemplate: app.k8sPodTemplate || '',
+          jmPodTemplate: app.k8sJmPodTemplate || '',
+          tmPodTemplate: app.k8sTmPodTemplate || '',
+        },
         ...resetParams,
       };
       if (!executionMode) {
@@ -150,7 +169,12 @@
 
   /* Handling update parameters */
   function handleAppUpdate(values: Recordable) {
+    Object.assign(app, flinkAppStore.getFlinkFormValue)
+    values = {...app, values}
     submitLoading.value = true;
+    k8sTemplate.podTemplate = values.k8sTemplate?.podTemplate ?? ''
+    k8sTemplate.jmPodTemplate = values.k8sTemplate?.jmPodTemplate ?? ''
+    k8sTemplate.tmPodTemplate = values.k8sTemplate?.tmPodTemplate ?? ''
     try {
       const params = {
         id: app.id,
@@ -174,6 +198,34 @@
     }
   }
 
+   /** slideMenu */
+  async function handleEdit(type: string) {
+    if(attrVisible.value) {
+      await attributeForm.value?.handleSubmit()
+      if (isAttrfailMsgActive.value) return
+    }
+    Object.assign(app, flinkAppStore.getFlinkFormValue)
+    if (type === 'attr') {
+      configVisible.value = false
+      attrVisible.value = true
+      closeConfigureDrawer()
+      openAttrDrawer(true, app)
+    } else {
+      attrVisible.value = false
+      configVisible.value = true
+      closeAttrDrawer()
+      openConfigureDrawer(true, app);
+    }
+  }
+
+  function addSlideSubmitResult(params) {
+    const { type, value} = params
+    isAttrfailMsgActive.value = false
+    if (type === 'fail' && value === 'attr') {
+      isAttrfailMsgActive.value = true
+    }
+  }
+
   onMounted(async () => {
     if (!route?.query?.appId) {
       go('/flink/app');
@@ -181,6 +233,7 @@
       return;
     }
     const value = await handleGetApplication();
+    initLoading.value = false
     setFieldsValue(value);
     if (app.resourceFrom == ResourceFromEnum.PROJECT) {
       jars.value = await fetchListJars({
@@ -192,54 +245,76 @@
   });
 </script>
 <template>
-  <PageWrapper contentBackground content-class="p-26px app_controller">
-    <BasicForm @register="registerForm" @submit="handleAppUpdate" :schemas="getEditFlinkFormSchema">
-      <template #podTemplate>
-        <PomTemplateTab
-          ref="podTemplateRef"
-          v-model:podTemplate="k8sTemplate.podTemplate"
-          v-model:jmPodTemplate="k8sTemplate.jmPodTemplate"
-          v-model:tmPodTemplate="k8sTemplate.tmPodTemplate"
-        />
-      </template>
+  <div>
+  <Spin v-if="initLoading" />
+  <div v-if="!initLoading">
+    <PageWrapper contentBackground content-class="p-26px app_controller">
+      <BasicForm @register="registerForm" @submit="handleAppUpdate" :schemas="getEditFlinkFormSchema">
+        <template #podTemplate>
+          <PomTemplateTab
+            ref="podTemplateRef"
+            v-model:podTemplate="k8sTemplate.podTemplate"
+            v-model:jmPodTemplate="k8sTemplate.jmPodTemplate"
+            v-model:tmPodTemplate="k8sTemplate.tmPodTemplate"
+          />
+        </template>
 
-      <template #uploadJobJar>
-        <UploadJobJar :custom-request="handleCustomJobRequest" v-model:loading="uploadLoading">
-          <template #uploadInfo>
-            <Alert v-if="uploadJar" class="uploadjar-box" type="info">
-              <template #message>
-                <span class="tag-dependency-pom">
-                  {{ uploadJar }}
-                </span>
-              </template>
-            </Alert>
-          </template>
-        </UploadJobJar>
-      </template>
+        <template #uploadJobJar>
+          <UploadJobJar :custom-request="handleCustomJobRequest" v-model:loading="uploadLoading">
+            <template #uploadInfo>
+              <Alert v-if="uploadJar" class="uploadjar-box" type="info">
+                <template #message>
+                  <span class="tag-dependency-pom">
+                    {{ uploadJar }}
+                  </span>
+                </template>
+              </Alert>
+            </template>
+          </UploadJobJar>
+        </template>
 
-      <template #args="{ model }">
-        <ProgramArgs
-          ref="programArgRef"
-          v-if="model.args != null && model.args != undefined"
-          v-model:value="model.args"
-          :suggestions="suggestions"
-          @preview="(value) => openReviewDrawer(true, { value, suggestions })"
-        />
-      </template>
+        <template #args="{ model }">
+          <ProgramArgs
+            ref="programArgRef"
+            v-if="model.args != null && model.args != undefined"
+            v-model:value="model.args"
+            :suggestions="suggestions"
+            @preview="(value) => openReviewDrawer(true, { value, suggestions })"
+          />
+        </template>
 
-      <template #formFooter>
-        <div class="flex items-center w-full justify-center">
-          <a-button @click="go('/flink/app')">
-            {{ t('common.cancelText') }}
-          </a-button>
-          <a-button class="ml-4" :loading="submitLoading" type="primary" @click="submit()">
-            {{ t('common.submitText') }}
-          </a-button>
-        </div>
-      </template>
-    </BasicForm>
-    <VariableReview @register="registerReviewDrawer" />
-  </PageWrapper>
+        <template #formFooter>
+          <div class="flex items-center w-full justify-center">
+            <a-button @click="go('/flink/app')">
+              {{ t('common.cancelText') }}
+            </a-button>
+            <a-button class="ml-4" :loading="submitLoading" type="primary" @click="submit()">
+              {{ t('common.submitText') }}
+            </a-button>
+          </div>
+        </template>
+      </BasicForm>
+      <VariableReview @register="registerReviewDrawer" />
+      <SidebarMenu
+        :attrVisible="attrVisible"
+        :configVisible="configVisible"
+        @openDrawer="handleEdit"
+      />
+    </PageWrapper>
+    <AddAttrDrawer
+      ref="attributeForm"
+      :flinkEnvs="flinkEnvs"
+      :schema="getEditAttrStreamParkFormSchema"
+      @register="registerAttrDrawer"
+      @addSubmitResult="addSlideSubmitResult"
+    />
+    <AddConfigDrawer
+      ref="configForm"
+      :schema="getEditConfigStreamParkFormSchema"
+      @register="registerConfigureDrawer"
+    />
+  </div>
+  </div>
 </template>
 <style lang="less">
   @import url('./styles/Add.less');
